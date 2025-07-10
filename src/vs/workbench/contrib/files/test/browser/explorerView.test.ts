@@ -73,6 +73,7 @@ suite('Files - ExplorerView', () => {
 	test('compressed navigation controller', async function () {
 		const container = $('.file');
 		const label = $('.label');
+		const fileSizeElement = $('.item-stat');
 		const labelName1 = $('.label-name');
 		const labelName2 = $('.label-name');
 		const labelName3 = $('.label-name');
@@ -96,6 +97,7 @@ suite('Files - ExplorerView', () => {
 				container: label,
 				onDidRender: emitter.event
 			},
+			fileSizeElement
 		}, 1, false);
 
 		ds.add(navigationController);
