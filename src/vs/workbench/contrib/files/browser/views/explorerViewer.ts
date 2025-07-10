@@ -9,7 +9,7 @@ import * as glob from '../../../../../base/common/glob.js';
 import { IListVirtualDelegate, ListDragOverEffectPosition, ListDragOverEffectType } from '../../../../../base/browser/ui/list/list.js';
 import { IProgressService, ProgressLocation, } from '../../../../../platform/progress/common/progress.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from '../../../../../platform/files/common/files.js';
+import { ByteSize, IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -838,6 +838,7 @@ export interface IFileTemplateData {
 	readonly elementDisposables: DisposableStore;
 	readonly label: IResourceLabel;
 	readonly container: HTMLElement;
+	readonly fileSizeElement: HTMLElement;
 	readonly contribs: IExplorerFileContribution[];
 	currentContext?: ExplorerItem;
 }
@@ -914,7 +915,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			contr.setResource(templateData.currentContext?.resource);
 		}));
 
-		const templateData: IFileTemplateData = { templateDisposables, elementDisposables: templateDisposables.add(new DisposableStore()), label, container, contribs };
+		const fileSizeElement = DOM.append(label.element, DOM.$('.item-stat'));
+
+		const templateData: IFileTemplateData = {
+			templateDisposables,
+			elementDisposables: templateDisposables.add(new DisposableStore()),
+			label,
+			container,
+			contribs,
+			fileSizeElement
+		};
 		return templateData;
 	}
 
@@ -1043,6 +1053,18 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			templateData.elementDisposables.add(badge);
 		}
 		templateData.label.element.classList.toggle('highlight-badge', highlightResults > 0);
+		templateData.fileSizeElement.textContent = '';
+
+		if (!stat.isDirectory) {
+			async function checkSize() {
+				if (typeof stat.checkSize === 'function') {
+					const size = await stat.checkSize();
+					templateData.fileSizeElement.textContent =
+						typeof size === 'number' && size > -1 ? ByteSize.formatSize(size) : '';
+				}
+			}
+			checkSize().catch(error => console.error(error));
+		}
 	}
 
 	private renderInputBox(container: HTMLElement, stat: ExplorerItem, editableData: IEditableData): IDisposable {

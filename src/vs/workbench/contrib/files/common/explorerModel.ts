@@ -93,6 +93,8 @@ export class ExplorerItem {
 	public nestedParent: ExplorerItem | undefined;
 	public nestedChildren: ExplorerItem[] | undefined;
 
+	public checkSize?: () => Promise<number>;
+
 	constructor(
 		public resource: URI,
 		private readonly fileService: IFileService,
@@ -105,7 +107,8 @@ export class ExplorerItem {
 		private _locked?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
-		private _unknown = false
+		private _unknown = false,
+		private _size?: number
 	) {
 		this._isDirectoryResolved = false;
 	}
@@ -177,6 +180,10 @@ export class ExplorerItem {
 		return this._parent.root;
 	}
 
+	get size(): number | undefined {
+		return this._size;
+	}
+
 	@memoize get children(): Map<string, ExplorerItem> {
 		return new Map<string, ExplorerItem>();
 	}
@@ -207,7 +214,21 @@ export class ExplorerItem {
 	}
 
 	static create(fileService: IFileService, configService: IConfigurationService, filesConfigService: IFilesConfigurationService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, configService, filesConfigService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.locked, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+		const stat = new ExplorerItem(
+			raw.resource,
+			fileService,
+			configService,
+			filesConfigService,
+			parent,
+			raw.isDirectory,
+			raw.isSymbolicLink,
+			raw.readonly,
+			raw.locked,
+			raw.name,
+			raw.mtime,
+			!raw.isFile && !raw.isDirectory,
+			raw.size
+		);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -222,7 +243,18 @@ export class ExplorerItem {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = ExplorerItem.create(fileService, configService, filesConfigService, raw.children[i], stat, resolveTo);
+					const child = ExplorerItem.create(fileService, configService, filesConfigService, raw.children[i], stat, resolveTo,);
+					child.checkSize = async function () {
+						if (typeof child._size === 'number') {
+							return child._size;
+						}
+						const childStat = await fileService.resolve(URI.from({
+							scheme: raw.resource.scheme,
+							path: raw.resource.path + '/' + child.name,
+						}), {});
+						child._size = childStat.size ?? -1;
+						return childStat.size ?? -1;
+					};
 					stat.addChild(child);
 				}
 			}
